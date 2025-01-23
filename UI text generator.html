@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Text Generator</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: #333;
+            color: #fff;
+            font-family: 'Arial', sans-serif;
+        }
+        canvas {
+            border: 1px solid #fff;
+            margin-top: 20px;
+        }
+        button, textarea {
+            font-size: 20px;
+            padding: 5px;
+        }
+        .checkbox-container {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+<div>
+    <textarea id="textInput" rows="4" cols="50"></textarea>
+    <button onclick="updateText()">Update Text</button>
+    <button onclick="downloadImage()">Download Image</button>
+</div>
+<div class="checkbox-container">
+    <label>
+        <input type="checkbox" id="showRoundedRect" checked> Show Rounded Rectangle
+    </label>
+    <label>
+        <input type="checkbox" id="showNegativeSpace" checked> Knockout on First Letter
+    </label>
+    <label>
+        <input type="checkbox" id="tallerOnLeft" checked> Taller on Left Side
+    </label>
+    <label>
+    <input type="checkbox" id="showLetterBorder" checked> Show Letter Border
+</label>
+
+</div>
+<canvas id="textCanvas"></canvas>
+<script>
+    const COLOR1 = '#ffc063'; // gold
+    const COLOR2 = '#FFFFFF'; // white
+    const BGCOLOR = '#150933'; // dark blue
+
+    const canvas = document.getElementById('textCanvas');
+    const ctx = canvas.getContext('2d');
+    const seed = 123; // Fixed seed for randomness
+
+    const fonts = ['Arial', 'Verdana', 'Times New Roman', 'Courier New', 'Georgia', 'Palatino', 'Comic Sans'];
+    const colors = [COLOR1, COLOR2];
+    const fontSize = 60;
+    const gutter = 5;
+    const padding = 30;
+    const lineHeight = fontSize * 1.2; // Add line height constant
+
+    function* seededRandom(seed) {
+        let value = seed;
+        while (true) {
+            value = value * 16807 % 2147483647;
+            yield value / 2147483647;
+        }
+    }
+
+    const randomGenerator = seededRandom(seed);
+
+    function getRandomElement(array) {
+        const index = Math.floor(randomGenerator.next().value * array.length);
+        return array[index];
+    }
+
+    function drawRoundedRect(x, y, width, height, radius, skewHeight = 10, tallerOnLeft = true) {
+        x -= radius;
+        width += radius * 2;
+        ctx.beginPath();
+        if (tallerOnLeft) {
+            ctx.moveTo(x + radius, y - skewHeight);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height + skewHeight);
+            ctx.quadraticCurveTo(x, y + height + skewHeight, x, y + height + skewHeight - radius);
+            ctx.lineTo(x, y - skewHeight + radius);
+            ctx.quadraticCurveTo(x, y - skewHeight, x + radius, y - skewHeight);
+        } else {
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y - skewHeight);
+            ctx.quadraticCurveTo(x + width, y - skewHeight, x + width, y - skewHeight + radius);
+            ctx.lineTo(x + width, y + height + skewHeight - radius);
+            ctx.quadraticCurveTo(x + width, y + height + skewHeight, x + width - radius, y + height + skewHeight);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = BGCOLOR;
+        ctx.fill();
+        ctx.strokeStyle = COLOR1;
+        ctx.lineWidth = 4;
+        ctx.stroke();
+    }
+
+    function drawStyledText(text) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const showRoundedRect = document.getElementById('showRoundedRect').checked;
+        const showNegativeSpace = document.getElementById('showNegativeSpace').checked;
+        const tallerOnLeft = document.getElementById('tallerOnLeft').checked;
+        const showLetterBorder = document.getElementById('showLetterBorder').checked; // New checkbox
+
+        const lines = text.split('\n');
+        const totalLines = lines.length;
+
+        let maxLineWidth = 0;
+        let firstCharWidth = 0;
+
+        if (text.length > 0 && showNegativeSpace) {
+            const circleSize = fontSize + 20;
+            firstCharWidth = circleSize + gutter;
+        }
+
+        for (let line of lines) {
+            let lineWidth = 0;
+            for (let i = 0; i < line.length; i++) {
+                const char = line.charAt(i);
+                const font = getRandomElement(fonts);
+                ctx.font = `${fontSize}px ${font}`;
+                const metrics = ctx.measureText(char);
+                lineWidth += metrics.width + gutter;
+            }
+            maxLineWidth = Math.max(maxLineWidth, lineWidth);
+        }
+
+        maxLineWidth += firstCharWidth;
+
+        const boxHeight = totalLines * lineHeight + padding * 2;
+        const boxWidth = maxLineWidth + padding * 2;
+        const boxX = (canvas.width - boxWidth) / 2;
+        const boxY = (canvas.height - boxHeight) / 2;
+        const borderRadius = 20;
+        const skewHeight = 30; // Added skew height
+
+        if (showRoundedRect) {
+            drawRoundedRect(boxX, boxY, boxWidth, boxHeight, borderRadius, skewHeight, tallerOnLeft);
+        }
+
+        let y = boxY + padding + fontSize / 2;
+
+        for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+            const line = lines[lineIndex];
+            let x = boxX + padding;
+
+            if (lineIndex === 0 && showNegativeSpace && line.length > 0) {
+                const char = line.charAt(0);
+                const font = getRandomElement(fonts);
+                const circleSize = fontSize + 20;
+
+                ctx.save();
+
+                // Draw the circle
+                ctx.fillStyle = COLOR1;
+                ctx.beginPath();
+                ctx.arc(x + circleSize / 2, y, circleSize / 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                if (showLetterBorder) {
+                    ctx.strokeStyle = BGCOLOR; // Add border to the circle
+                    ctx.lineWidth = 4;
+                    ctx.stroke();
+                }
+
+                // Draw the letter in the background color
+                ctx.fillStyle = BGCOLOR;
+                ctx.font = `${fontSize}px ${font}`;
+                ctx.textBaseline = 'middle';
+                ctx.textAlign = 'center';
+                ctx.fillText(char, x + circleSize / 2, y);
+
+                if (showLetterBorder) {
+                    ctx.strokeStyle = BGCOLOR; // Border around the letter inside the circle
+                    ctx.lineWidth = 2;
+                    ctx.strokeText(char, x + circleSize / 2, y);
+                }
+
+                ctx.restore();
+
+                x += circleSize + gutter;
+            }
+
+            for (let index = (lineIndex === 0 && showNegativeSpace) ? 1 : 0; index < line.length; index++) {
+                const char = line.charAt(index);
+                const font = getRandomElement(fonts);
+                const angleDeg = randomGenerator.next().value * 40 - 20;
+                const angle = angleDeg * Math.PI / 180;
+                const color = colors[index % 2];
+
+                ctx.font = `${fontSize}px ${font}`;
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = color;
+
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(angle);
+                const metrics = ctx.measureText(char);
+                ctx.fillText(char, 0 - metrics.actualBoundingBoxLeft, 0);
+
+                if (showLetterBorder) {
+                    ctx.strokeStyle = BGCOLOR; // Border around the letter
+                    ctx.lineWidth = 2;
+                    ctx.strokeText(char, 0 - metrics.actualBoundingBoxLeft, 0);
+                }
+
+                ctx.restore();
+
+                x += metrics.width + gutter;
+            }
+
+            y += lineHeight;
+        }
+    }
+
+    function adjustCanvas() {
+        canvas.width = window.innerWidth - 100;
+        canvas.height = window.innerHeight - 200;
+        const text = document.getElementById('textInput').value;
+        drawStyledText(text);
+    }
+
+    function updateText() {
+        adjustCanvas();
+    }
+
+    function downloadImage() {
+        const link = document.createElement('a');
+        link.download = `${document.getElementById('textInput').value.split('\n')[0]}.png`;
+        link.href = canvas.toDataURL('image/png').replace('image/png', 'image/octet-stream');
+        link.click();
+    }
+
+    function getUrlParameter(name) {
+        name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+        const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+        const results = regex.exec(location.search);
+        return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+    }
+
+    function initializeFromUrlParams() {
+        const textParam = getUrlParameter('text');
+        if (textParam) {
+            document.getElementById('textInput').value = textParam.replace(/\\n/g, '\n');
+        }
+
+        const showRoundedRectParam = getUrlParameter('showRoundedRect');
+        if (showRoundedRectParam !== '') {
+            document.getElementById('showRoundedRect').checked = showRoundedRectParam === 'true';
+        }
+
+        const showNegativeSpaceParam = getUrlParameter('showNegativeSpace');
+        if (showNegativeSpaceParam !== '') {
+            document.getElementById('showNegativeSpace').checked = showNegativeSpaceParam === 'true';
+        }
+
+        const tallerOnLeftParam = getUrlParameter('tallerOnLeft');
+        if (tallerOnLeftParam !== '') {
+            document.getElementById('tallerOnLeft').checked = tallerOnLeftParam === 'true';
+        }
+
+        adjustCanvas();
+    }
+
+    window.onload = initializeFromUrlParams;
+    window.onresize = adjustCanvas;
+
+    document.getElementById('showRoundedRect').addEventListener('change', adjustCanvas);
+    document.getElementById('showNegativeSpace').addEventListener('change', adjustCanvas);
+    document.getElementById('tallerOnLeft').addEventListener('change', adjustCanvas);
+</script>
+</body>
+</html>
